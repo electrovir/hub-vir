@@ -193,6 +193,11 @@ export async function createHubViteConfig({
         plugins: [
             hubPlugin,
         ],
+        optimizeDeps: {
+            entries: [
+                hubVirAppPath,
+            ],
+        },
         server: {
             fs: {
                 allow: [
