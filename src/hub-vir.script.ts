@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import {FlagRequirement, parseArgs} from 'cli-vir';
+import {ArgValueType, FlagRequirement, parseArgs} from 'cli-vir';
 import {resolve} from 'node:path';
 import {buildHub, startHubDevServer} from './build-hub.js';
 
@@ -24,6 +24,14 @@ const args = parseArgs(
             },
             description: 'Serve the hub with a Vite dev server instead of building it.',
         },
+        port: {
+            flag: {
+                valueRequirement: FlagRequirement.Required,
+            },
+            type: ArgValueType.Number,
+            description:
+                'Port for the dev server. Requires `--dev`. Fails if the port is taken. Without this, the first free port starting at 5173 is used.',
+        },
     },
     {
         binName: 'hub-vir',
@@ -32,9 +40,12 @@ const args = parseArgs(
     },
 );
 
-if (args.dev) {
+if (args.port !== false && !args.dev) {
+    throw new Error('The --port flag only applies to the dev server. Add --dev or remove --port.');
+} else if (args.dev) {
     await startHubDevServer({
         configPath: args.configPath,
+        port: args.port === false ? undefined : args.port,
     });
 } else {
     await buildHub({

@@ -2,6 +2,7 @@ import {assert, assertWrap, check, waitUntil} from '@augment-vir/assert';
 import {describe, it} from '@augment-vir/test';
 import {mkdtemp, readdir, readFile, rm, writeFile} from 'node:fs/promises';
 import {get} from 'node:https';
+import {createServer} from 'node:net';
 import {tmpdir} from 'node:os';
 import {dirname, join} from 'node:path';
 import {buildHub, createHubViteConfig, startHubDevServer} from './build-hub.js';
@@ -169,7 +170,45 @@ function fetchDevServerText(url: string) {
     });
 }
 
+async function findFreePort() {
+    const server = createServer();
+    await new Promise<void>((resolve) => {
+        server.listen(0, resolve);
+    });
+    const address = server.address();
+    await new Promise((resolve) => {
+        server.close(resolve);
+    });
+
+    return assertWrap.isNumber(check.isString(address) ? undefined : address?.port);
+}
+
 describe(startHubDevServer.name, () => {
+    it('serves on the given port and refuses to fall back to another one', async () => {
+        const port = await findFreePort();
+        const server = await startHubDevServer({
+            configPath: exampleConfigPath,
+            port,
+        });
+
+        try {
+            assert.isTrue(
+                assertWrap.isDefined(server.resolvedUrls?.local[0]).endsWith(`:${port}/`),
+            );
+            await assert.throws(
+                startHubDevServer({
+                    configPath: exampleConfigPath,
+                    port,
+                }),
+            );
+        } finally {
+            await server.close();
+            await rm(server.config.root, {
+                recursive: true,
+                force: true,
+            });
+        }
+    });
     it('reloads hub data when the config file changes', async () => {
         const configDir = await mkdtemp(join(tmpdir(), 'hub-vir-test-'));
         const configPath = join(configDir, 'hub-vir.config.json');

@@ -4,7 +4,14 @@ import {mkdir, mkdtemp, readdir, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {dirname, extname, join, relative, resolve} from 'node:path';
 import {tsImport} from 'tsx/esm/api';
-import {build, createServer, mergeConfig, type Plugin, type UserConfig} from 'vite';
+import {
+    build,
+    createServer,
+    type InlineConfig,
+    mergeConfig,
+    type Plugin,
+    type UserConfig,
+} from 'vite';
 import {type HubConfig, hubConfigShape} from './hub-config.js';
 
 const hubDataModuleId = '/hub-vir-data.js';
@@ -295,7 +302,14 @@ export async function buildHub({configPath, outDir: rawOutDir}: Readonly<BuildHu
 export type StartHubDevServerParams = {
     /** Path to a hub-vir config file (JSON, YAML, TOML, JS, or TS). */
     configPath: string;
-};
+} & PartialWithUndefined<{
+    /**
+     * Port to serve on. Startup fails if the port is taken.
+     *
+     * @default The first free port starting at Vite's default
+     */
+    port: number;
+}>;
 
 /**
  * Serves a hub from a hub-vir config file with a Vite dev server. This is what the `hub-vir` CLI
@@ -305,29 +319,51 @@ export type StartHubDevServerParams = {
  * @category Main
  * @returns The running Vite dev server.
  */
-export async function startHubDevServer({configPath}: Readonly<StartHubDevServerParams>) {
+export async function startHubDevServer({configPath, port}: Readonly<StartHubDevServerParams>) {
     const rootDir = await mkdtemp(join(tmpdir(), 'hub-vir-'));
 
-    const server = await createServer({
-        configFile: false,
-        ...(await createHubViteConfig({
-            configPath,
-            rootDir,
-        })),
-    });
+    const server = await createServer(
+        mergeConfig(
+            await createHubViteConfig({
+                configPath,
+                rootDir,
+            }),
+            {
+                configFile: false,
+                server:
+                    port == undefined
+                        ? {}
+                        : {
+                              port,
+                              strictPort: true,
+                          },
+            } satisfies InlineConfig,
+        ),
+    );
 
-    process.once('SIGINT', async () => {
-        /* c8 ignore start: exits the process, so tests can't trigger it */
+    async function closeServer() {
         await server.close();
         await rm(rootDir, {
             recursive: true,
             force: true,
         });
+    }
+
+    try {
+        await server.listen();
+    } catch (error) {
+        /** The file watcher is already running and would otherwise keep the process alive. */
+        await closeServer();
+        throw error;
+    }
+
+    process.once('SIGINT', async () => {
+        /* c8 ignore start: exits the process, so tests can't trigger it */
+        await closeServer();
         process.exit();
         /* c8 ignore stop */
     });
 
-    await server.listen();
     server.printUrls();
 
     return server;
