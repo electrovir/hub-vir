@@ -107,6 +107,49 @@ describe(buildHub.name, () => {
             });
         }
     });
+    it('links thumbnail URLs without bundling them', async () => {
+        const configDir = await mkdtemp(join(tmpdir(), 'hub-vir-test-'));
+        const configPath = join(configDir, 'hub-vir.config.json');
+        const outDir = join(configDir, 'dist');
+
+        try {
+            await writeFile(
+                configPath,
+                JSON.stringify({
+                    links: [
+                        {
+                            title: 'Example',
+                            url: 'https://example.com',
+                            thumbnailUrl: 'https://example.com/icon.svg',
+                        },
+                    ],
+                }),
+            );
+            await buildHub({
+                configPath,
+                outDir,
+            });
+
+            const assetFiles = await readdir(join(outDir, 'assets'));
+            const scriptContents = await Promise.all(
+                assetFiles
+                    .filter((fileName) => fileName.endsWith('.js'))
+                    .map((fileName) => readFile(join(outDir, 'assets', fileName), 'utf8')),
+            );
+
+            assert.isFalse(assetFiles.some((fileName) => fileName.endsWith('.svg')));
+            assert.isTrue(
+                scriptContents.some((contents) => {
+                    return contents.includes('https://example.com/icon.svg');
+                }),
+            );
+        } finally {
+            await rm(configDir, {
+                recursive: true,
+                force: true,
+            });
+        }
+    });
     it('defaults the output directory to dist', async () => {
         await assert.throws(
             buildHub({

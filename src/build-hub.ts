@@ -66,7 +66,9 @@ function createHubDataModule({
             `url: ${JSON.stringify(link.url)},`,
             'thumbnailPath' in link
                 ? `thumbnailUrl: thumbnail${index},`
-                : `thumbnailEmoji: ${JSON.stringify(link.thumbnailEmoji)},`,
+                : 'thumbnailUrl' in link
+                  ? `thumbnailUrl: ${JSON.stringify(link.thumbnailUrl)},`
+                  : `thumbnailEmoji: ${JSON.stringify(link.thumbnailEmoji)},`,
             '}',
         ].join('');
     });
