@@ -33,7 +33,30 @@ describe(buildHub.name, () => {
             const assetFiles = await readdir(join(outDir, 'assets'));
 
             assert.isTrue(indexHtml.includes('src="./assets/'));
+            assert.isTrue(indexHtml.includes('<link rel="manifest" href="manifest.webmanifest">'));
             assert.isLengthAtLeast(assetFiles, 1);
+            assert.deepEquals(
+                JSON.parse(await readFile(join(outDir, 'manifest.webmanifest'), 'utf8')),
+                {
+                    name: 'Example Hub',
+                    start_url: './',
+                    scope: './',
+                    display: 'standalone',
+                    icons: [
+                        {
+                            src: 'icon-192.png',
+                            sizes: '192x192',
+                            type: 'image/png',
+                        },
+                        {
+                            src: 'icon-512.png',
+                            sizes: '512x512',
+                            type: 'image/png',
+                        },
+                    ],
+                },
+            );
+            assert.isTrue((await readdir(outDir)).includes('icon-512.png'));
         } finally {
             await rm(outDir, {
                 recursive: true,
@@ -294,6 +317,14 @@ describe(startHubDevServer.name, () => {
                 );
             });
             assert.isTrue((await fetchDevServerText(url)).includes('<title>Changed Hub</title>'));
+            assert.isTrue(
+                (await fetchDevServerText(new URL('manifest.webmanifest', url).href)).includes(
+                    '"name":"Changed Hub"',
+                ),
+            );
+            assert.isTrue(
+                (await fetchDevServerText(new URL('icon-192.png', url).href)).includes('PNG'),
+            );
         } finally {
             await server.close();
             await rm(server.config.root, {

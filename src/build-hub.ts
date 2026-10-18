@@ -1,6 +1,12 @@
-import {log, type PartialWithUndefined, wrapInTry} from '@augment-vir/common';
+import {assertWrap, check} from '@augment-vir/assert';
+import {
+    getObjectTypedEntries,
+    log,
+    type PartialWithUndefined,
+    wrapInTry,
+} from '@augment-vir/common';
 import {loadConfig} from 'config-vir';
-import {mkdir, mkdtemp, readdir, rm, writeFile} from 'node:fs/promises';
+import {mkdir, mkdtemp, readdir, readFile, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {dirname, extname, join, relative, resolve} from 'node:path';
 import {tsImport} from 'tsx/esm/api';
@@ -21,12 +27,56 @@ const resolvedHubDataModuleId = '\0hub-vir-data.js';
 const hubBuildOutputEntries = [
     'index.html',
     'assets',
+    'manifest.webmanifest',
+    'icon-192.png',
+    'icon-512.png',
     '.DS_Store',
 ];
 
 /** Vite inserts `<title>` children into the HTML without escaping them. */
 function escapeHtmlText(text: string) {
     return text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+}
+
+/** Lets the hub be installed as a full screen app on mobile home screens and desktops. */
+function createWebAppManifest(hubConfig: Readonly<HubConfig>) {
+    return JSON.stringify({
+        name: hubConfig.title || 'Hub',
+        start_url: './',
+        scope: './',
+        display: 'standalone',
+        icons: [
+            {
+                src: 'icon-192.png',
+                sizes: '192x192',
+                type: 'image/png',
+            },
+            {
+                src: 'icon-512.png',
+                sizes: '512x512',
+                type: 'image/png',
+            },
+        ],
+    });
+}
+
+const iconsDir = join(dirname(import.meta.dirname), 'assets', 'icons');
+
+/** Files that the hub plugin writes into the build output and serves from the dev server. */
+const webAppFileContentTypes = {
+    'manifest.webmanifest': 'application/manifest+json',
+    'icon-192.png': 'image/png',
+    'icon-512.png': 'image/png',
+};
+
+async function createWebAppFiles(
+    hubConfig: Readonly<HubConfig>,
+): Promise<Record<keyof typeof webAppFileContentTypes, string | Buffer>> {
+    return {
+        'manifest.webmanifest': createWebAppManifest(hubConfig),
+        'icon-192.png': await readFile(join(iconsDir, 'icon-192.png')),
+        'icon-512.png': await readFile(join(iconsDir, 'icon-512.png')),
+    };
 }
 
 /**
@@ -110,7 +160,10 @@ export async function createHubViteConfig({
             '<html lang="en">',
             '<head>',
             '<meta charset="UTF-8" />',
-            '<meta name="viewport" content="width=device-width, initial-scale=1.0" />',
+            '<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />',
+            '<meta name="mobile-web-app-capable" content="yes" />',
+            '<meta name="apple-mobile-web-app-capable" content="yes" />',
+            '<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />',
             '<style>body {margin: 0;}</style>',
             '</head>',
             '<body>',
@@ -152,17 +205,80 @@ export async function createHubViteConfig({
         async transformIndexHtml() {
             const hubConfig = await loadHubConfig();
 
-            return hubConfig.title
-                ? [
-                      {
-                          tag: 'title',
-                          children: escapeHtmlText(hubConfig.title),
-                          injectTo: 'head',
-                      },
-                  ]
-                : [];
+            return [
+                ...(hubConfig.title
+                    ? [
+                          {
+                              tag: 'title',
+                              children: escapeHtmlText(hubConfig.title),
+                              injectTo: 'head' as const,
+                          },
+                          {
+                              tag: 'meta',
+                              attrs: {
+                                  name: 'apple-mobile-web-app-title',
+                                  content: hubConfig.title,
+                              },
+                              injectTo: 'head' as const,
+                          },
+                      ]
+                    : []),
+                {
+                    tag: 'link',
+                    attrs: {
+                        rel: 'manifest',
+                        href: 'manifest.webmanifest',
+                    },
+                    injectTo: 'head',
+                },
+                {
+                    tag: 'link',
+                    attrs: {
+                        rel: 'icon',
+                        href: 'icon-192.png',
+                        type: 'image/png',
+                    },
+                    injectTo: 'head',
+                },
+                {
+                    tag: 'link',
+                    attrs: {
+                        rel: 'apple-touch-icon',
+                        href: 'icon-192.png',
+                    },
+                    injectTo: 'head',
+                },
+            ];
+        },
+        async generateBundle() {
+            getObjectTypedEntries(await createWebAppFiles(await loadHubConfig())).forEach(
+                ([
+                    fileName,
+                    source,
+                ]) => {
+                    this.emitFile({
+                        type: 'asset',
+                        fileName,
+                        source,
+                    });
+                },
+            );
         },
         configureServer(server) {
+            server.middlewares.use(async (request, response, next) => {
+                const fileName = new URL(
+                    assertWrap.isDefined(request.url),
+                    'http://localhost',
+                ).pathname.slice(1);
+                if (!check.isKeyOf(fileName, webAppFileContentTypes)) {
+                    next();
+                    return;
+                }
+
+                response.setHeader('Content-Type', webAppFileContentTypes[fileName]);
+                response.end((await createWebAppFiles(await loadHubConfig()))[fileName]);
+            });
+
             /** The config file lives outside the Vite root, so Vite does not watch it by default. */
             server.watcher.add(resolve(configPath));
             server.watcher.on('change', (changedPath) => {

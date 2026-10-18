@@ -24,7 +24,9 @@ export const HubVirApp = defineElement<{
             gap: 24px;
             box-sizing: border-box;
             min-height: 100dvh;
-            padding: 8px 16px;
+            /** Keeps content clear of notches and the status bar when installed as an app. */
+            padding: calc(8px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right))
+                calc(8px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
             font-family: 'Atkinson Hyperlegible', sans-serif;
             ${colorCss(viraTheme.colors[themeDefaultKey])}
             isolation: isolate;
