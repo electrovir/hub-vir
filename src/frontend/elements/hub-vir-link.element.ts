@@ -1,4 +1,4 @@
-import {css, defineElement, html} from 'element-vir';
+import {css, defineElement, html, listen} from 'element-vir';
 import {ViraImage, ViraLink, viraTheme} from 'vira';
 import {type HubData} from '../hub-data.js';
 
@@ -69,7 +69,19 @@ export const HubVirLink = defineElement<{
                     newTab: false,
                 },
                 disableLinkStyles: true,
-            })}>
+            })}
+                ${listen('click', (event) => {
+                    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+                        return;
+                    }
+                    /**
+                     * Home screen apps on iOS open plain links outside the app's scope in a Safari
+                     * view, but keep pages loaded with `window.open` inside the app.
+                     */
+                    event.preventDefault();
+                    globalThis.open(inputs.link.url, '_self');
+                })}
+            >
                 <div class="tile">
                     ${'thumbnailUrl' in inputs.link
                         ? html`
