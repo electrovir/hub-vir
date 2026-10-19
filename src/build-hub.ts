@@ -9,7 +9,9 @@ import {loadConfig} from 'config-vir';
 import {mkdir, mkdtemp, readdir, readFile, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {dirname, extname, join, relative, resolve} from 'node:path';
+import {themeDefaultKey} from 'theme-vir';
 import {tsImport} from 'tsx/esm/api';
+import {viraTheme} from 'vira';
 import {
     build,
     createServer,
@@ -168,7 +170,11 @@ export async function createHubViteConfig({
             '<meta name="mobile-web-app-capable" content="yes" />',
             '<meta name="apple-mobile-web-app-capable" content="yes" />',
             '<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />',
-            '<style>body {margin: 0;}</style>',
+            /**
+             * The page background shows wherever the app element doesn't reach, like behind the iOS
+             * home indicator in home screen apps, so it gets the theme background too.
+             */
+            `<style>html {background-color: var(${String(viraTheme.colors[themeDefaultKey].background.name)});} body {margin: 0;}</style>`,
             '</head>',
             '<body>',
             '<script type="module">',
