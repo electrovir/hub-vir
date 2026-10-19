@@ -23,7 +23,13 @@ export const HubVirApp = defineElement<{
             align-items: center;
             gap: 24px;
             box-sizing: border-box;
-            min-height: 100dvh;
+            /**
+             * Pinned to the screen edges because 100dvh falls short of the full screen in iOS
+             * home screen apps with viewport-fit=cover, exposing the unpainted page below.
+             */
+            position: fixed;
+            inset: 0;
+            overflow-y: auto;
             /** Keeps content clear of notches and the status bar when installed as an app. */
             padding: calc(8px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right))
                 calc(8px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));

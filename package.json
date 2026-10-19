@@ -1,6 +1,6 @@
 {
     "name": "hub-vir",
-    "version": "0.2.1",
+    "version": "0.2.2",
     "description": "CLI that builds a static, deployable link hub website from a config file.",
     "keywords": [
         "hub",

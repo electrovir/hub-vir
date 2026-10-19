@@ -43,7 +43,11 @@ function createWebAppManifest(hubConfig: Readonly<HubConfig>) {
     return JSON.stringify({
         name: hubConfig.title || 'Hub',
         start_url: './',
-        scope: './',
+        /**
+         * Covers the whole origin so iOS keeps same-origin links (like sibling GitHub Pages sites)
+         * inside the app instead of opening them in a browser view with Safari controls.
+         */
+        scope: '/',
         display: 'standalone',
         icons: [
             {

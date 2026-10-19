@@ -40,7 +40,7 @@ describe(buildHub.name, () => {
                 {
                     name: 'Example Hub',
                     start_url: './',
-                    scope: './',
+                    scope: '/',
                     display: 'standalone',
                     icons: [
                         {
