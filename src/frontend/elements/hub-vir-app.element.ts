@@ -1,7 +1,7 @@
 import {colorCss} from '@electrovir/color';
 import {css, defineElement, html, listen} from 'element-vir';
 import {themeDefaultKey} from 'theme-vir';
-import {MagnifyingGlass24Icon, ViraInput, ViraThemeSwitcher, viraTheme} from 'vira';
+import {LucideSearchIcon, ViraInput, ViraThemeSwitcher, viraTheme} from 'vira';
 import {createFrontendState, type FrontendState} from '../frontend-state/create-frontend-state.js';
 import {type HubData} from '../hub-data.js';
 import {HubVirLink} from './hub-vir-link.element.js';
@@ -100,7 +100,7 @@ export const HubVirApp = defineElement<{
                       <${ViraInput.assign({
                           value: frontendState.linkFilter,
                           placeholder: 'Search',
-                          icon: MagnifyingGlass24Icon,
+                          icon: LucideSearchIcon,
                           showClearButton: true,
                       })}
                           ${listen(ViraInput.events.valueChange, (event) => {
