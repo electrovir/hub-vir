@@ -6,8 +6,7 @@ import {
     wrapInTry,
 } from '@augment-vir/common';
 import {loadConfig} from 'config-vir';
-import {mkdir, mkdtemp, readdir, readFile, rm, writeFile} from 'node:fs/promises';
-import {tmpdir} from 'node:os';
+import {mkdir, readdir, readFile, writeFile} from 'node:fs/promises';
 import {dirname, extname, join, relative, resolve} from 'node:path';
 import {themeDefaultKey} from 'theme-vir';
 import {tsImport} from 'tsx/esm/api';
@@ -403,24 +402,15 @@ export async function buildHub({configPath, outDir: rawOutDir}: Readonly<BuildHu
         );
     }
 
-    const rootDir = await mkdtemp(join(tmpdir(), 'hub-vir-'));
-
-    try {
-        await build({
-            configFile: false,
-            logLevel: 'warn',
-            ...(await createHubViteConfig({
-                configPath,
-                rootDir,
-                outDir,
-            })),
-        });
-    } finally {
-        await rm(rootDir, {
-            recursive: true,
-            force: true,
-        });
-    }
+    await build({
+        configFile: false,
+        logLevel: 'warn',
+        ...(await createHubViteConfig({
+            configPath,
+            rootDir: join(dirname(configPath), '.hub-vir'),
+            outDir,
+        })),
+    });
 
     log.success(`Hub built into ${outDir}`);
 
@@ -453,13 +443,11 @@ export type StartHubDevServerParams = {
  * @returns The running Vite dev server.
  */
 export async function startHubDevServer({configPath, port}: Readonly<StartHubDevServerParams>) {
-    const rootDir = await mkdtemp(join(tmpdir(), 'hub-vir-'));
-
     const server = await createServer(
         mergeConfig(
             await createHubViteConfig({
                 configPath,
-                rootDir,
+                rootDir: join(dirname(configPath), '.hub-vir'),
             }),
             {
                 configFile: false,
@@ -474,25 +462,17 @@ export async function startHubDevServer({configPath, port}: Readonly<StartHubDev
         ),
     );
 
-    async function closeServer() {
-        await server.close();
-        await rm(rootDir, {
-            recursive: true,
-            force: true,
-        });
-    }
-
     try {
         await server.listen();
     } catch (error) {
         /** The file watcher is already running and would otherwise keep the process alive. */
-        await closeServer();
+        await server.close();
         throw error;
     }
 
     process.once('SIGINT', async () => {
         /* c8 ignore start: exits the process, so tests can't trigger it */
-        await closeServer();
+        await server.close();
         process.exit();
         /* c8 ignore stop */
     });
